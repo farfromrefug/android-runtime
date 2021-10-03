@@ -412,13 +412,16 @@ dependencies {
         outLogger.withStyle(Style.SuccessHeader).println "\t + using android X library androidx.transition:transition:$androidXTransitionVersion"
     }
 
-    def androidXMultidexVersion = "${android_x_multidex_version}"
-    if (project.hasProperty("androidXMultidex")) {
-        androidXMultidexVersion = androidXMultidex
-        outLogger.withStyle(Style.SuccessHeader).println "\t + using android X library androidx.multidex:multidex:$androidXMultidexVersion"
-    }
+    def multiDexEnabled = project.hasProperty("multiDexEnabled") ? project.multiDexEnabled : true
+    if (multiDexEnabled) {
+        def androidXMultidexVersion = "${android_x_multidex_version}"
+        if (project.hasProperty("androidXMultidex")) {
+            androidXMultidexVersion = androidXMultidex
+            outLogger.withStyle(Style.SuccessHeader).println "\t + using android X library androidx.multidex:multidex:$androidXMultidexVersion"
+        }
 
-    implementation "androidx.multidex:multidex:$androidXMultidexVersion"
+        implementation "androidx.multidex:multidex:$androidXMultidexVersion"
+    }
     implementation "androidx.appcompat:appcompat:$androidXAppCompatVersion"
     implementation "com.google.android.material:material:$androidXMaterialVersion"
     implementation "androidx.exifinterface:exifinterface:$androidXExifInterfaceVersion"
