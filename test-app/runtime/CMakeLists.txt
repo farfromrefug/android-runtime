@@ -60,7 +60,7 @@ else ()
 endif ()
 
 if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
-    # When building in Release mode we do not include the V8 inspector sources
+    # Debug builds will include the V8 inspector sources
     add_definitions(-DAPPLICATION_IN_DEBUG)
 
     set(
@@ -123,7 +123,7 @@ if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
         src/main/cpp/v8_inspector/src/inspector/value-mirror.cc
     )
 else ()
-    # Debug builds will include the V8 inspector sources
+    # When building in Release mode we do not include the V8 inspector sources
     set(INSPECTOR_SOURCES)
 endif ()
 
@@ -180,7 +180,7 @@ add_library(
     src/main/cpp/com_tns_Runtime.cpp
     src/main/cpp/console/Console.cpp
 
-    # V8 inspector source files will be included only in Release mode
+    # V8 inspector source files will be included only in Debug or inspector mode
     ${INSPECTOR_SOURCES}
 )
 
@@ -204,7 +204,9 @@ else ()
     )
 endif ()
 
-target_link_libraries(NativeScript ${PROJECT_SOURCE_DIR}/src/main/libs/${ANDROID_ABI}/libinspector_protocol.a)
+if (NOT OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
+    target_link_libraries(NativeScript ${PROJECT_SOURCE_DIR}/src/main/libs/${ANDROID_ABI}/libinspector_protocol.a)
+endif ()
 
 MESSAGE(STATUS "# General cmake Info")
 MESSAGE(STATUS "# PROJECT_SOURCE_DIR: " ${PROJECT_SOURCE_DIR})
