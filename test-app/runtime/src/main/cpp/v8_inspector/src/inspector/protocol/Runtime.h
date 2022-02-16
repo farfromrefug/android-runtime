@@ -1200,6 +1200,10 @@ public:
     int getExecutionContextId(int defaultValue) { return m_executionContextId.isJust() ? m_executionContextId.fromJust() : defaultValue; }
     void setExecutionContextId(int value) { m_executionContextId = value; }
 
+    bool hasExceptionMetaData() { return m_exceptionMetaData.isJust(); }
+    protocol::DictionaryValue* getExceptionMetaData(protocol::DictionaryValue* defaultValue) { return m_exceptionMetaData.isJust() ? m_exceptionMetaData.fromJust() : defaultValue; }
+    void setExceptionMetaData(std::unique_ptr<protocol::DictionaryValue> value) { m_exceptionMetaData = std::move(value); }
+
     template<int STATE>
     class ExceptionDetailsBuilder {
     public:
@@ -1270,6 +1274,12 @@ public:
             return *this;
         }
 
+        ExceptionDetailsBuilder<STATE>& setExceptionMetaData(std::unique_ptr<protocol::DictionaryValue> value)
+        {
+            m_result->setExceptionMetaData(std::move(value));
+            return *this;
+        }
+
         std::unique_ptr<ExceptionDetails> build()
         {
             static_assert(STATE == AllFieldsSet, "state should be AllFieldsSet");
@@ -1312,6 +1322,7 @@ private:
     Maybe<protocol::Runtime::StackTrace> m_stackTrace;
     Maybe<protocol::Runtime::RemoteObject> m_exception;
     Maybe<int> m_executionContextId;
+    Maybe<protocol::DictionaryValue> m_exceptionMetaData;
 };
 
 
@@ -1603,7 +1614,7 @@ public:
         virtual void fallThrough() = 0;
         virtual ~CallFunctionOnCallback() { }
     };
-    virtual void callFunctionOn(const String& in_functionDeclaration, Maybe<String> in_objectId, Maybe<protocol::Array<protocol::Runtime::CallArgument>> in_arguments, Maybe<bool> in_silent, Maybe<bool> in_returnByValue, Maybe<bool> in_generatePreview, Maybe<bool> in_userGesture, Maybe<bool> in_awaitPromise, Maybe<int> in_executionContextId, Maybe<String> in_objectGroup, std::unique_ptr<CallFunctionOnCallback> callback) = 0;
+    virtual void callFunctionOn(const String& in_functionDeclaration, Maybe<String> in_objectId, Maybe<protocol::Array<protocol::Runtime::CallArgument>> in_arguments, Maybe<bool> in_silent, Maybe<bool> in_returnByValue, Maybe<bool> in_generatePreview, Maybe<bool> in_userGesture, Maybe<bool> in_awaitPromise, Maybe<int> in_executionContextId, Maybe<String> in_objectGroup, Maybe<bool> in_throwOnSideEffect, std::unique_ptr<CallFunctionOnCallback> callback) = 0;
     virtual DispatchResponse compileScript(const String& in_expression, const String& in_sourceURL, bool in_persistScript, Maybe<int> in_executionContextId, Maybe<String>* out_scriptId, Maybe<protocol::Runtime::ExceptionDetails>* out_exceptionDetails) = 0;
     virtual DispatchResponse disable() = 0;
     virtual DispatchResponse discardConsoleEntries() = 0;
@@ -1618,7 +1629,7 @@ public:
     virtual void evaluate(const String& in_expression, Maybe<String> in_objectGroup, Maybe<bool> in_includeCommandLineAPI, Maybe<bool> in_silent, Maybe<int> in_contextId, Maybe<bool> in_returnByValue, Maybe<bool> in_generatePreview, Maybe<bool> in_userGesture, Maybe<bool> in_awaitPromise, Maybe<bool> in_throwOnSideEffect, Maybe<double> in_timeout, Maybe<bool> in_disableBreaks, Maybe<bool> in_replMode, Maybe<bool> in_allowUnsafeEvalBlockedByCSP, Maybe<String> in_uniqueContextId, std::unique_ptr<EvaluateCallback> callback) = 0;
     virtual DispatchResponse getIsolateId(String* out_id) = 0;
     virtual DispatchResponse getHeapUsage(double* out_usedSize, double* out_totalSize) = 0;
-    virtual DispatchResponse getProperties(const String& in_objectId, Maybe<bool> in_ownProperties, Maybe<bool> in_accessorPropertiesOnly, Maybe<bool> in_generatePreview, std::unique_ptr<protocol::Array<protocol::Runtime::PropertyDescriptor>>* out_result, Maybe<protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>* out_internalProperties, Maybe<protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>* out_privateProperties, Maybe<protocol::Runtime::ExceptionDetails>* out_exceptionDetails) = 0;
+    virtual DispatchResponse getProperties(const String& in_objectId, Maybe<bool> in_ownProperties, Maybe<bool> in_accessorPropertiesOnly, Maybe<bool> in_generatePreview, Maybe<bool> in_nonIndexedPropertiesOnly, std::unique_ptr<protocol::Array<protocol::Runtime::PropertyDescriptor>>* out_result, Maybe<protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>* out_internalProperties, Maybe<protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>* out_privateProperties, Maybe<protocol::Runtime::ExceptionDetails>* out_exceptionDetails) = 0;
     virtual DispatchResponse globalLexicalScopeNames(Maybe<int> in_executionContextId, std::unique_ptr<protocol::Array<String>>* out_names) = 0;
     virtual DispatchResponse queryObjects(const String& in_prototypeObjectId, Maybe<String> in_objectGroup, std::unique_ptr<protocol::Runtime::RemoteObject>* out_objects) = 0;
     virtual DispatchResponse releaseObject(const String& in_objectId) = 0;
@@ -1659,7 +1670,7 @@ public:
     void executionContextCreated(std::unique_ptr<protocol::Runtime::ExecutionContextDescription> context);
     void executionContextDestroyed(int executionContextId);
     void executionContextsCleared();
-    void inspectRequested(std::unique_ptr<protocol::Runtime::RemoteObject> object, std::unique_ptr<protocol::DictionaryValue> hints);
+    void inspectRequested(std::unique_ptr<protocol::Runtime::RemoteObject> object, std::unique_ptr<protocol::DictionaryValue> hints, Maybe<int> executionContextId = Maybe<int>());
 
   void flush();
   void sendRawNotification(std::unique_ptr<Serializable>);

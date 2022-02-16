@@ -1,7 +1,7 @@
 # documentation: https://d.android.com/studio/projects/add-native-code.html
 
 # Command info: https://cmake.org/cmake/help/v3.4/command/cmake_minimum_required.html
-cmake_minimum_required(VERSION 3.10.2)
+cmake_minimum_required(VERSION 3.18.1)
 
 # Add the ccache to the build system
 find_program(CCACHE_FOUND ccache)
@@ -17,11 +17,11 @@ endif (CCACHE_FOUND AND (USE_CCACHE))
 MESSAGE(STATUS "## ANDROID_NDK_ROOT: " ${ANDROID_NDK_ROOT})
 
 
-set(COMMON_CMAKE_ARGUMENTS "-nostdinc++ -std=c++14 -Werror -Wno-unused-result -mstackrealign -fexceptions -fno-builtin-stpcpy -fno-rtti -D_LIBCPP_ABI_VERSION=Cr -D_LIBCPP_ENABLE_NODISCARD -D_LIBCPP_ABI_UNSTABLE -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -DV8_31BIT_SMIS_ON_64BIT_ARCH -DV8_31BIT_SMIS_ON_64BIT_ARCH -DV8_ENABLE_REGEXP_INTERPRETER_THREADED_DISPATCH -DV8_EMBEDDED_BUILTINS")
+set(COMMON_CMAKE_ARGUMENTS "-nostdinc++ -std=c++14 -Werror -Wno-unused-result -mstackrealign -fexceptions -fno-builtin-stpcpy -fno-rtti -D_LIBCPP_ABI_VERSION=Cr -D_LIBCPP_ENABLE_NODISCARD -D_LIBCPP_ABI_UNSTABLE -D_LIBCPP_HAS_NO_VENDOR_AVAILABILITY_ANNOTATIONS -DV8_ENABLE_REGEXP_INTERPRETER_THREADED_DISPATCH -DV8_EMBEDDED_BUILTINS")
 
 if("${ANDROID_ABI}" MATCHES "arm64-v8a$" OR "${ANDROID_ABI}" MATCHES "x86_64$")
     # Enable pointer compression on 64 bit platforms
-    set(COMMON_CMAKE_ARGUMENTS "${COMMON_CMAKE_ARGUMENTS} -DV8_COMPRESS_POINTERS")
+    set(COMMON_CMAKE_ARGUMENTS "${COMMON_CMAKE_ARGUMENTS} -DV8_COMPRESS_POINTERS -DV8_31BIT_SMIS_ON_64BIT_ARCH")
 endif()
 
 
@@ -184,10 +184,14 @@ add_library(
     ${INSPECTOR_SOURCES}
 )
 
+if("${ANDROID_ABI}" MATCHES "arm64-v8a$" OR "${ANDROID_ABI}" MATCHES "x86_64$")
+    set(CMAKE_C_FLAGS "-mno-outline-atomics")
+endif()
+
 set(NATIVES_BLOB_INCLUDE_DIRECTORIES ${PROJECT_SOURCE_DIR}/src/main/libs/${ANDROID_ABI}/include)
 
 if (OPTIMIZED_BUILD OR OPTIMIZED_WITH_INSPECTOR_BUILD)
-    set_target_properties(
+        set_target_properties(
         NativeScript
         PROPERTIES LINK_FLAGS -Wl,--allow-multiple-definition -Wl,--exclude-libs=ALL -Wl,--gc-sections
         INTERFACE_INCLUDE_DIRECTORIES NATIVES_BLOB_INCLUDE_DIRECTORIES
@@ -199,6 +203,8 @@ else ()
         INTERFACE_INCLUDE_DIRECTORIES NATIVES_BLOB_INCLUDE_DIRECTORIES
     )
 endif ()
+
+target_link_libraries(NativeScript ${PROJECT_SOURCE_DIR}/src/main/libs/${ANDROID_ABI}/libinspector_protocol.a)
 
 MESSAGE(STATUS "# General cmake Info")
 MESSAGE(STATUS "# PROJECT_SOURCE_DIR: " ${PROJECT_SOURCE_DIR})

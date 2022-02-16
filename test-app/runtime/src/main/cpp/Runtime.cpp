@@ -418,7 +418,7 @@ void Runtime::PassExceptionToJsNative(JNIEnv* env, jobject obj, jthrowable excep
     auto context = isolate->GetCurrentContext();
     errObj->Set(context, V8StringConstants::GetNativeException(isolate), nativeExceptionObject);
     errObj->Set(context, V8StringConstants::GetStackTrace(isolate), ArgConverter::jstringToV8String(isolate, fullStackTrace));
-    if (jsStackTrace != NULL) {
+    if (jsStackTrace != nullptr) {
         errObj->Set(context, V8StringConstants::GetStack(isolate), ArgConverter::jstringToV8String(isolate, jsStackTrace));
     }
 
@@ -617,6 +617,7 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
 
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__log"), FunctionTemplate::New(isolate, CallbackHandlers::LogMethodCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__dumpReferenceTables"), FunctionTemplate::New(isolate, CallbackHandlers::DumpReferenceTablesMethodCallback));
+    globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__drainMicrotaskQueue"), FunctionTemplate::New(isolate, CallbackHandlers::DrainMicrotaskCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__enableVerboseLogging"), FunctionTemplate::New(isolate, CallbackHandlers::EnableVerboseLoggingMethodCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__disableVerboseLogging"), FunctionTemplate::New(isolate, CallbackHandlers::DisableVerboseLoggingMethodCallback));
     globalTemplate->Set(ArgConverter::ConvertToV8String(isolate, "__exit"), FunctionTemplate::New(isolate, CallbackHandlers::ExitMethodCallback));
@@ -665,7 +666,6 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
     }
 #endif
 
-    m_weakRef.Init(isolate, globalTemplate, m_objectManager);
 
     SimpleProfiler::Init(isolate, globalTemplate);
 
@@ -673,6 +673,7 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
 
     Local<Context> context = Context::New(isolate, nullptr, globalTemplate);
     context->Enter();
+
 
     m_objectManager->Init(isolate);
 
@@ -689,6 +690,7 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
     global->DefineOwnProperty(context, ArgConverter::ConvertToV8String(isolate, "global"), global, readOnlyFlags);
     global->DefineOwnProperty(context, ArgConverter::ConvertToV8String(isolate, "__global"), global, readOnlyFlags);
 
+    tns::WeakRef::Init(context);
     // Do not set 'self' accessor to main thread JavaScript
     if (s_mainThreadInitialized) {
         global->DefineOwnProperty(context, ArgConverter::ConvertToV8String(isolate, "self"), global, readOnlyFlags);
@@ -717,6 +719,7 @@ Isolate* Runtime::PrepareV8Runtime(const string& filesPath, const string& native
     }
 
     auto enableProfiler = !profilerOutputDir.empty();
+
     MetadataNode::EnableProfiler(enableProfiler);
 
     MetadataNode::CreateTopLevelNamespaces(isolate, global);
@@ -810,6 +813,10 @@ bool Runtime::RunExtraCode(Isolate* isolate, Local<Context> context, const char*
 void Runtime::DestroyRuntime() {
     s_id2RuntimeCache.erase(m_id);
     s_isolate2RuntimesCache.erase(m_isolate);
+    MetadataNode::DeInit(m_isolate);
+    ArgConverter::DeInit(m_isolate);
+    Console::DeInit(m_isolate);
+    tns::ClearPersistentSmartJSONStringify(m_isolate);
 }
 
 Local<Context> Runtime::GetContext() {

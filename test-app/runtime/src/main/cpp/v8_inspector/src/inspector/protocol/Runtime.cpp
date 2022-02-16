@@ -292,6 +292,7 @@ V8_CRDTP_BEGIN_DESERIALIZER(ExceptionDetails)
     V8_CRDTP_DESERIALIZE_FIELD("columnNumber", m_columnNumber),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("exception", m_exception),
     V8_CRDTP_DESERIALIZE_FIELD("exceptionId", m_exceptionId),
+    V8_CRDTP_DESERIALIZE_FIELD_OPT("exceptionMetaData", m_exceptionMetaData),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("executionContextId", m_executionContextId),
     V8_CRDTP_DESERIALIZE_FIELD("lineNumber", m_lineNumber),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("scriptId", m_scriptId),
@@ -310,6 +311,7 @@ V8_CRDTP_BEGIN_SERIALIZER(ExceptionDetails)
     V8_CRDTP_SERIALIZE_FIELD("stackTrace", m_stackTrace);
     V8_CRDTP_SERIALIZE_FIELD("exception", m_exception);
     V8_CRDTP_SERIALIZE_FIELD("executionContextId", m_executionContextId);
+    V8_CRDTP_SERIALIZE_FIELD("exceptionMetaData", m_exceptionMetaData);
 V8_CRDTP_END_SERIALIZER();
 
 
@@ -467,13 +469,14 @@ void Frontend::executionContextsCleared()
     frontend_channel_->SendProtocolNotification(v8_crdtp::CreateNotification("Runtime.executionContextsCleared"));
 }
 
-void Frontend::inspectRequested(std::unique_ptr<protocol::Runtime::RemoteObject> object, std::unique_ptr<protocol::DictionaryValue> hints)
+void Frontend::inspectRequested(std::unique_ptr<protocol::Runtime::RemoteObject> object, std::unique_ptr<protocol::DictionaryValue> hints, Maybe<int> executionContextId)
 {
     if (!frontend_channel_)
         return;
     v8_crdtp::ObjectSerializer serializer;
     serializer.AddField(v8_crdtp::MakeSpan("object"), object);
     serializer.AddField(v8_crdtp::MakeSpan("hints"), hints);
+    serializer.AddField(v8_crdtp::MakeSpan("executionContextId"), executionContextId);
     frontend_channel_->SendProtocolNotification(v8_crdtp::CreateNotification("Runtime.inspectRequested", serializer.Finish()));
 }
 
@@ -729,6 +732,7 @@ struct callFunctionOnParams : public v8_crdtp::DeserializableProtocolObject<call
     Maybe<bool> awaitPromise;
     Maybe<int> executionContextId;
     Maybe<String> objectGroup;
+    Maybe<bool> throwOnSideEffect;
     DECLARE_DESERIALIZATION_SUPPORT();
 };
 
@@ -742,6 +746,7 @@ V8_CRDTP_BEGIN_DESERIALIZER(callFunctionOnParams)
     V8_CRDTP_DESERIALIZE_FIELD_OPT("objectId", objectId),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("returnByValue", returnByValue),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("silent", silent),
+    V8_CRDTP_DESERIALIZE_FIELD_OPT("throwOnSideEffect", throwOnSideEffect),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("userGesture", userGesture),
 V8_CRDTP_END_DESERIALIZER()
 
@@ -757,7 +762,7 @@ void DomainDispatcherImpl::callFunctionOn(const v8_crdtp::Dispatchable& dispatch
       return;
 
 
-    m_backend->callFunctionOn(params.functionDeclaration, std::move(params.objectId), std::move(params.arguments), std::move(params.silent), std::move(params.returnByValue), std::move(params.generatePreview), std::move(params.userGesture), std::move(params.awaitPromise), std::move(params.executionContextId), std::move(params.objectGroup), std::make_unique<CallFunctionOnCallbackImpl>(weakPtr(), dispatchable.CallId(), dispatchable.Serialized()));
+    m_backend->callFunctionOn(params.functionDeclaration, std::move(params.objectId), std::move(params.arguments), std::move(params.silent), std::move(params.returnByValue), std::move(params.generatePreview), std::move(params.userGesture), std::move(params.awaitPromise), std::move(params.executionContextId), std::move(params.objectGroup), std::move(params.throwOnSideEffect), std::make_unique<CallFunctionOnCallbackImpl>(weakPtr(), dispatchable.CallId(), dispatchable.Serialized()));
 }
 
 namespace {
@@ -1029,12 +1034,14 @@ struct getPropertiesParams : public v8_crdtp::DeserializableProtocolObject<getPr
     Maybe<bool> ownProperties;
     Maybe<bool> accessorPropertiesOnly;
     Maybe<bool> generatePreview;
+    Maybe<bool> nonIndexedPropertiesOnly;
     DECLARE_DESERIALIZATION_SUPPORT();
 };
 
 V8_CRDTP_BEGIN_DESERIALIZER(getPropertiesParams)
     V8_CRDTP_DESERIALIZE_FIELD_OPT("accessorPropertiesOnly", accessorPropertiesOnly),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("generatePreview", generatePreview),
+    V8_CRDTP_DESERIALIZE_FIELD_OPT("nonIndexedPropertiesOnly", nonIndexedPropertiesOnly),
     V8_CRDTP_DESERIALIZE_FIELD("objectId", objectId),
     V8_CRDTP_DESERIALIZE_FIELD_OPT("ownProperties", ownProperties),
 V8_CRDTP_END_DESERIALIZER()
@@ -1057,7 +1064,7 @@ void DomainDispatcherImpl::getProperties(const v8_crdtp::Dispatchable& dispatcha
     Maybe<protocol::Runtime::ExceptionDetails> out_exceptionDetails;
 
     std::unique_ptr<DomainDispatcher::WeakPtr> weak = weakPtr();
-    DispatchResponse response = m_backend->getProperties(params.objectId, std::move(params.ownProperties), std::move(params.accessorPropertiesOnly), std::move(params.generatePreview), &out_result, &out_internalProperties, &out_privateProperties, &out_exceptionDetails);
+    DispatchResponse response = m_backend->getProperties(params.objectId, std::move(params.ownProperties), std::move(params.accessorPropertiesOnly), std::move(params.generatePreview), std::move(params.nonIndexedPropertiesOnly), &out_result, &out_internalProperties, &out_privateProperties, &out_exceptionDetails);
     if (response.IsFallThrough()) {
         channel()->FallThrough(dispatchable.CallId(), v8_crdtp::SpanFrom("Runtime.getProperties"), dispatchable.Serialized());
         return;
