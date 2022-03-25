@@ -31,22 +31,27 @@ if (hasNdkVersion) {
 def NDK_PATH = ""
 def hasNdkDirectory = project.hasProperty("ndkDirectory")
 if(!hasNdkDirectory){
+    println "No ndkDirectory set, checking environment \$ANDROID_NDK..."
+    
     NDK_PATH = "$System.env.ANDROID_NDK"
-    if (NDK_PATH == null){
+    if (NDK_PATH == null || NDK_PATH == "null"){
+        println "No ndkDirectory set, checking environment \$ANDROID_NDK_ROOT..."
         NDK_PATH = "$System.env.ANDROID_NDK_ROOT"
     }
-    println NDK_PATH
-}else {
+    
+    if (NDK_PATH == null || NDK_PATH == "null"){
+        println "No ndkDirectory set, checking environment \$ANDROID_NDK_HOME..."
+        NDK_PATH = "$System.env.ANDROID_NDK_HOME"
+    }
+} else {
     NDK_PATH = ndkDirectory
 }
-
-
-
+println "Runtime using NDK_PATH: " + NDK_PATH
 
 android {
 
-    compileSdkVersion COMPILE_SDK_VERSION as int
-    buildToolsVersion BUILD_TOOLS_VERSION as String
+    compileSdkVersion NS_DEFAULT_COMPILE_SDK_VERSION as int
+    buildToolsVersion NS_DEFAULT_BUILD_TOOLS_VERSION as String
 
     sourceSets {
         main {
@@ -61,12 +66,13 @@ android {
     if (hasNdkVersion) {
         ndkVersion ndkVersion
     } else {
-        ndkVersion "22.1.7171670"
+        ndkVersion "21.1.6352462"
+        // ndkVersion "22.1.7171670"
     }
 
     defaultConfig {
-        minSdkVersion MIN_SDK_VERSION as int
-        targetSdkVersion COMPILE_SDK_VERSION as int
+        minSdkVersion NS_DEFAULT_MIN_SDK_VERSION as int
+        targetSdkVersion NS_DEFAULT_COMPILE_SDK_VERSION as int
 
         if (!optimized && !optimizedWithInspector) {
             project.archivesBaseName = "${archivesBaseName}-regular"
@@ -98,7 +104,7 @@ android {
         }
 
         ndk {
-            minSdkVersion MIN_SDK_VERSION as int
+            minSdkVersion NS_DEFAULT_MIN_SDK_VERSION as int
             if (onlyX86) {
                 abiFilters 'x86'
             } else {
@@ -115,7 +121,7 @@ android {
     }
     externalNativeBuild {
         cmake {
-            version "3.18.1"
+            // version "3.18.1"
             path "CMakeLists.txt"
         }
     }
@@ -131,13 +137,16 @@ allprojects {
 }
 
 dependencies {
+    // println "\t ~ [DEBUG][runtime] build.gradle - ns_default_junit_version = ${ns_default_junit_version}..."
+
     implementation fileTree(include: ['*.jar'], dir: 'libs')
-    testImplementation 'junit:junit:4.13.2'
-    testImplementation 'org.mockito:mockito-core:3.0.0'
+    testImplementation "junit:junit:${ns_default_junit_version}"
+    testImplementation "org.mockito:mockito-core:${ns_default_mockito_core_version}"
 }
 
 tasks.whenTaskAdded { task ->
     def taskName = task.getName()
+    // println "\t ~ [DEBUG][runtime] build.gradle whenTaskAdded taskName = ${taskName}"
     if (taskName.contains("externalNativeBuildRelease")) {
         setRuntimeCommit.dependsOn(setPackageVersion)
         task.dependsOn(setRuntimeCommit)
